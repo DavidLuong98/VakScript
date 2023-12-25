@@ -1,16 +1,17 @@
-#built-in
+# built-in
 from ctypes import windll
 from collections import namedtuple
 from gc import collect as del_mem
 from time import sleep
+from datetime import datetime
+import time
 
-#ext
+# ext
 from pyMeow import open_process, get_module
 from pyMeow import r_int, r_float, r_uint64
-from win32api import GetSystemMetrics, GetCursorPos
+from win32api import GetSystemMetrics, GetCursorPos, GetAsyncKeyState
 
-
-#own
+# own
 from data import Offsets, Info, VK_CODES
 from world_to_screen import World
 from utils import send_key, debug_info
@@ -22,6 +23,7 @@ TODO:
 
 """
 
+
 class Asmite:
 
     def __init__(self, settings):
@@ -32,75 +34,65 @@ class Asmite:
         self.obj_x = Offsets.obj_x
         self.obj_y = Offsets.obj_y
         self.obj_z = Offsets.obj_z
-    
+
     def get_settings(self):
         return VK_CODES[self.settings['smite']]
-            
+
     def _read_attr(self, process, address, nt):
         attributes = nt(
-            health  = r_float(process, address + self.obj_health),
-            alive   = r_int(process, address + self.obj_spawn_count) % 2 == 0,
-            x       = r_float(process, address + self.obj_x),
-            y       = r_float(process, address + self.obj_y),
-            z       = r_float(process, address + self.obj_z)
+            health=r_float(process, address + self.obj_health),
+            alive=r_int(process, address + self.obj_spawn_count) % 2 == 0,
+            x=r_float(process, address + self.obj_x),
+            y=r_float(process, address + self.obj_y),
+            z=r_float(process, address + self.obj_z)
         )
 
         return attributes
 
+
+# Workaround : Not actually autosmite, rather twisted fate card picker. Reason : adding an external script under
+# scripts folder caused a hardware limitation issue. For some reason, autosmite never raised that exception.
 def autosmite(terminate, settings, jungle_pointers, on_window):
+    w_key = VK_CODES['w']
+    e_key = VK_CODES['e']
+    t_key = VK_CODES['t']
+    three_key = VK_CODES['3']
+    key_card = {e_key: 'goldcardlock', t_key: "redcardlock", three_key: 'bluecardlock'}
+
     while not terminate.value:
         if on_window.value:
             del_mem()
-            try:
-                process = open_process(process=Info.game_name_executable)
-                base_address = get_module(process, Info.game_name_executable)['base']
-                local_player = r_uint64(process, base_address + Offsets.local_player)
-                attr_reader = AttributesReader(process, base_address)
-                asmite = Asmite(settings)
-                smite_key = asmite.get_settings()
 
-                damage = 0
-                smite_charges = 0
+            user_selected_card_name = "";
+            if GetAsyncKeyState(three_key):
+                send_key(w_key)
+                user_selected_card_name = key_card[three_key]
+            elif GetAsyncKeyState(e_key):
+                send_key(w_key)
+                user_selected_card_name = key_card[e_key]
+            elif GetAsyncKeyState(t_key):
+                send_key(w_key)
+                user_selected_card_name = key_card[t_key]
 
-                width, height = GetSystemMetrics(0), GetSystemMetrics(1)
-                world = World(process, base_address, width, height)
-                set_cursor_pos = windll.user32.SetCursorPos
-                nt = namedtuple('Attributes', 'health alive x y z')
+            if user_selected_card_name != "":
+                while True:
+                    try:
+                        process = open_process(process=Info.game_name_executable)
+                        base_address = get_module(process, Info.game_name_executable)['base']
+                        local_player = r_uint64(process, base_address + Offsets.local_player)
+                        attr_reader = AttributesReader(process, base_address)
 
-            except Exception as asmite_proc_loop:
-                debug_info(asmite_proc_loop, True)
-                sleep(0.1)
-                
-            else:
-                try:
-                    while 1 and on_window.value:
-                        player = attr_reader.read_player(local_player)
+                        card_name = attr_reader.read_spells(local_player)[1]['name'].lower()
+                        if card_name == user_selected_card_name:
+                            send_key(w_key)
+                            break
+                        else:
+                            time.sleep(0.1)
+                            print(card_name)
 
-                        for buff in player.buffs:
-                            if 'smitedamagetracker' in str(buff.name).lower():
-                                damage = buff.count2
+                    except Exception as e:
+                        print("Error in selectCard:", e)
 
-                        entities = [asmite._read_attr(process, pointer, nt) for pointer in jungle_pointers]
-                        target = [entity for entity in entities if entity.health <= damage and entity.alive]
-                        
-                        spells = attr_reader.read_spells(local_player)
-                        if 'smite' in spells[4]['name'].lower():
-                            smite_charges = spells[4]['charges']
-                        elif 'smite' in spells[5]['name'].lower():
-                            smite_charges = spells[5]['charges']
-
-                        if target and smite_charges > 0:
-                            pos = world.world_to_screen(world.get_view_proj_matrix(), target[0].x, target[0].z, target[0].y)
-                            mouse_pos = GetCursorPos()
-                            if pos:
-                                set_cursor_pos(pos[0], pos[1])
-                                send_key(smite_key)
-                                sleep(0.01)
-                                set_cursor_pos(mouse_pos[0], mouse_pos[1])
-
-                        sleep(0.03)
-                except Exception as asmite_loop:
-                    debug_info(asmite_loop, True)
-                    sleep(0.1)
-
+            if user_selected_card_name != "":
+                user_selected_card_name = ""
 
