@@ -58,6 +58,7 @@ def autosmite(terminate, settings, jungle_pointers, on_window):
     t_key = VK_CODES['t']
     three_key = VK_CODES['3']
     key_card = {e_key: 'goldcardlock', t_key: "redcardlock", three_key: 'bluecardlock'}
+    MAX_LOOP_DURATION = 6
 
     while not terminate.value:
         if on_window.value:
@@ -75,6 +76,7 @@ def autosmite(terminate, settings, jungle_pointers, on_window):
                 user_selected_card_name = key_card[t_key]
 
             if user_selected_card_name != "":
+                start_time = time.time()
                 while True:
                     try:
                         process = open_process(process=Info.game_name_executable)
@@ -86,9 +88,12 @@ def autosmite(terminate, settings, jungle_pointers, on_window):
                         if card_name == user_selected_card_name:
                             send_key(w_key)
                             break
-                        else:
-                            time.sleep(0.1)
-                            print(card_name)
+                        else :
+                            elapsed_time = time.time() - start_time
+                            if elapsed_time > MAX_LOOP_DURATION :
+                                break;
+                            else:
+                                time.sleep(0.1)
 
                     except Exception as e:
                         print("Error in selectCard:", e)
