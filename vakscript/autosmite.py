@@ -63,15 +63,19 @@ def autosmite(terminate, settings, jungle_pointers, on_window):
     while not terminate.value:
         if on_window.value:
             del_mem()
+            process = open_process(process=Info.game_name_executable)
+            base_address = get_module(process, Info.game_name_executable)['base']
+            local_player = r_uint64(process, base_address + Offsets.local_player)
+            attr_reader = AttributesReader(process, base_address)
 
-            user_selected_card_name = "";
-            if GetAsyncKeyState(three_key):
+            user_selected_card_name = ""
+            if GetAsyncKeyState(three_key) and not IsOnCooldown(process, base_address, local_player, attr_reader):
                 send_key(w_key)
                 user_selected_card_name = key_card[three_key]
-            elif GetAsyncKeyState(e_key):
+            elif GetAsyncKeyState(e_key) and not IsOnCooldown(process, base_address, local_player, attr_reader):
                 send_key(w_key)
                 user_selected_card_name = key_card[e_key]
-            elif GetAsyncKeyState(t_key):
+            elif GetAsyncKeyState(t_key) and not IsOnCooldown(process, base_address, local_player, attr_reader):
                 send_key(w_key)
                 user_selected_card_name = key_card[t_key]
 
@@ -79,19 +83,15 @@ def autosmite(terminate, settings, jungle_pointers, on_window):
                 start_time = time.time()
                 while True:
                     try:
-                        process = open_process(process=Info.game_name_executable)
-                        base_address = get_module(process, Info.game_name_executable)['base']
-                        local_player = r_uint64(process, base_address + Offsets.local_player)
                         attr_reader = AttributesReader(process, base_address)
-
                         card_name = attr_reader.read_spells(local_player)[1]['name'].lower()
                         if card_name == user_selected_card_name:
                             send_key(w_key)
                             break
-                        else :
+                        else:
                             elapsed_time = time.time() - start_time
-                            if elapsed_time > MAX_LOOP_DURATION :
-                                break;
+                            if elapsed_time > MAX_LOOP_DURATION:
+                                break
                             else:
                                 time.sleep(0.1)
 
@@ -101,3 +101,13 @@ def autosmite(terminate, settings, jungle_pointers, on_window):
             if user_selected_card_name != "":
                 user_selected_card_name = ""
 
+
+def IsOnCooldown(process, base_address, local_player, attr_reader):
+    game_time = r_float(process, base_address + Offsets.game_time)
+    card_cooldown = attr_reader.read_spells(local_player)[1]['cooldown']
+    is_on_cooldown = card_cooldown > game_time
+
+    if is_on_cooldown:
+        print("W is on cooldown")
+
+    return is_on_cooldown
