@@ -73,7 +73,7 @@ class MultiprocessingFunctions:
         """
         This function will continuosly update and share all the pointers and settings that each process needs.
         """
-
+ 
 
         while not self.updater_terminate.value:
             del_mem()
@@ -98,7 +98,7 @@ class MultiprocessingFunctions:
 
                             if not self.spaceglider_terminate.value or not self.drawings_terminate.value:
                                 self.champion_pointers[:] = read_pointers.get_pointers(Offsets.champion_list, stats.names, size=128, search_mode=0)
-                                self.minion_pointers[:] = read_pointers.get_pointers(Offsets.minion_list, size=512, search_mode=1)
+                                # self.minion_pointers[:] = read_pointers.get_pointers(Offsets.minion_list, size=512, search_mode=1)
                                 self.ward_pointers[:] = read_pointers.get_pointers(Offsets.minion_list, size=512, search_mode=3)
                                 self.turret_pointers[:] = read_pointers.get_pointers(Offsets.turret_list, size=64, search_mode=2)
 
